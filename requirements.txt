@@ -1,0 +1,6 @@
+GitPython==3.1.31
+gitdb
+typing-extensions
+pydriller
+dulwich
+PyYAML
