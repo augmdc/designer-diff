@@ -21,13 +21,33 @@ This tool automatically updates AutoGen files based on changes in Designer files
    cd <repository-directory>
    ```
 
-2. Install the required dependencies:
+2. Create a virtual environment:
    ```
-   pip install gitpython
+   python -m venv venv
+   ```
+
+3. Activate the virtual environment:
+   - On Windows:
+     ```
+     venv\Scripts\activate
+     ```
+   - On macOS and Linux:
+     ```
+     source venv/bin/activate
+     ```
+
+4. Create a `requirements.txt` file in the project root with the following content:
+   ```
+   gitpython==3.1.30
+   ```
+
+5. Install the required dependencies:
+   ```
+   pip install -r requirements.txt
    ```
 
 ## Usage
-Run the script using Python:
+Ensure your virtual environment is activated, then run the script using Python:
 
 ```
 python main.py [options]
@@ -66,6 +86,7 @@ python main.py [options]
 - `code_updater.py`: Contains the `CodeUpdater` class responsible for creating and updating AutoGen files.
 - `diff_handler.py`: Handles the processing of Git diffs.
 - `git_operations.py`: Manages Git-related operations like finding diffs and locating the TeleAI directory.
+- `requirements.txt`: Lists the Python package dependencies.
 
 ## Logging
 The script uses Python's logging module to provide informative output. Use the `-v` or `--verbose` flag for detailed debug information.
