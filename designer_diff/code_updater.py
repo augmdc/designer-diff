@@ -19,13 +19,13 @@ class CodeUpdater:
             designer_content = self._read_designer_file(designer_file_path)
             self.logger.debug(f"Designer file content length: {len(designer_content)} characters")
             
-            designer_initialize_content = self._extract_initialize_layout(designer_content)
-            self.logger.info(f"Extracted InitializeLayoutOptions content:\n{designer_initialize_content}")
+            initialize_component_content = self._extract_initialize_component(designer_content)
+            self.logger.info(f"Extracted InitializeComponent content length: {len(initialize_component_content)} characters")
             
             if not os.path.exists(autogen_file_path) or init_mode:
                 action = 'Creating' if not os.path.exists(autogen_file_path) else 'Reinitializing'
                 self.logger.info(f"{action} AutoGen file: {autogen_file_path}")
-                content = self._create_autogen_file(designer_file_path, autogen_file_path, designer_initialize_content)
+                content = self._create_autogen_file(designer_file_path, autogen_file_path, initialize_component_content)
             else:
                 self.logger.info(f"AutoGen file already exists: {autogen_file_path}")
                 with open(autogen_file_path, 'r', encoding='utf-8') as file:
@@ -53,10 +53,10 @@ class CodeUpdater:
             self.logger.exception("Detailed error information:")
             return False, None
 
-    def _create_autogen_file(self, designer_file_path, autogen_file_path, initialize_layout_content):
+    def _create_autogen_file(self, designer_file_path, autogen_file_path, initialize_component_content):
         try:
             self.logger.info(f"Creating new AutoGen file: {autogen_file_path}")
-            content = self._generate_autogen_content(designer_file_path, initialize_layout_content)
+            content = self._generate_autogen_content(designer_file_path, initialize_component_content)
             
             self.logger.debug(f"Generated AutoGen file content length: {len(content)} characters")
             
@@ -73,7 +73,7 @@ class CodeUpdater:
             self.logger.exception("Detailed error information:")
             raise
 
-    def _generate_autogen_content(self, designer_file_path, initialize_layout_content):
+    def _generate_autogen_content(self, designer_file_path, initialize_component_content):
         self.logger.info(f"Generating AutoGen content for {designer_file_path}")
         class_name = os.path.basename(designer_file_path).replace('.Designer.cs', '')
         relative_path = os.path.relpath(os.path.dirname(designer_file_path), self.teleai_root)
@@ -91,9 +91,9 @@ namespace {namespace}
 {{
     public partial class {class_name}
     {{
-        protected override void InitializeLayoutOptions()
+        private void InitializeComponent()
         {{
-{initialize_layout_content}
+{initialize_component_content}
         }}
     }}
 }}
@@ -112,31 +112,21 @@ namespace {namespace}
             self.logger.error(f"Error reading Designer file {designer_file_path}: {str(e)}")
             raise
 
-    def _extract_initialize_layout(self, content):
-        self.logger.info("Extracting InitializeLayoutOptions content")
+    def _extract_initialize_component(self, content):
+        self.logger.info("Extracting InitializeComponent content")
         
         self.logger.debug(f"Searched Designer file content (length: {len(content)} characters)")
         
-        # First, try to find the InitializeLayoutOptions method
-        method_match = re.search(r'(?:private|protected override)\s+void\s+InitializeLayoutOptions\(\)\s*{(.*?)}', content, re.DOTALL | re.IGNORECASE)
+        # Find the InitializeComponent method
+        method_match = re.search(r'private void InitializeComponent\(\)\s*{(.*?)}', content, re.DOTALL)
         
         if method_match:
             extracted_content = method_match.group(1).strip()
             formatted_content = '\n'.join(f"            {line.strip()}" for line in extracted_content.split('\n') if line.strip())
-            self.logger.debug(f"Extracted and formatted content length: {len(formatted_content)} characters")
+            self.logger.debug(f"Extracted and formatted InitializeComponent content length: {len(formatted_content)} characters")
             return formatted_content
         else:
-            self.logger.warning("InitializeLayoutOptions method not found in the Designer file")
-            
-            # If the method is not found, look for individual layout assignments
-            layout_matches = re.findall(r'(layouts?\[.*?\]\s*=\s*new\s*ControlLayoutOptions\(.*?\);)', content, re.DOTALL)
-            
-            if layout_matches:
-                formatted_content = '\n'.join(f"            {match.strip()}" for match in layout_matches)
-                self.logger.debug(f"Extracted individual layout assignments length: {len(formatted_content)} characters")
-                return formatted_content
-            else:
-                self.logger.warning("No layout assignments found in the Designer file")
+            self.logger.warning("InitializeComponent method not found in the Designer file")
         
         return ""
 
@@ -152,39 +142,50 @@ namespace {namespace}
     def _apply_changes(self, content, changes):
         self.logger.info("Applying changes to AutoGen content")
         lines = content.split('\n')
-        start_index = next((i for i, line in enumerate(lines) if "InitializeLayoutOptions()" in line), -1)
+        
+        # Find the start and end of the InitializeComponent method
+        start_index = next((i for i, line in enumerate(lines) if "private void InitializeComponent()" in line), -1)
         if start_index == -1:
-            self.logger.error("InitializeLayoutOptions() method not found in AutoGen file")
+            self.logger.error("InitializeComponent() method not found in AutoGen file")
             return content
 
         end_index = next((i for i, line in enumerate(lines[start_index:], start=start_index) if line.strip() == '}'), -1)
         if end_index == -1:
-            self.logger.error("Closing brace for InitializeLayoutOptions() not found in AutoGen file")
+            self.logger.error("Closing brace for InitializeComponent() not found in AutoGen file")
             return content
 
-        self.logger.debug(f"InitializeLayoutOptions found from line {start_index} to {end_index}")
+        self.logger.debug(f"InitializeComponent found from line {start_index} to {end_index}")
 
-        initialize_layout_lines = lines[start_index+2:end_index]
+        # Extract the method content
+        method_lines = lines[start_index+1:end_index]
         
-        for layout, components in changes.items():
-            for component, value in components.items():
-                pattern = rf'{layout}\["{component}"\]\s*=\s*new\s*ControlLayoutOptions\((.*?)\);'
-                replacement = f'{layout}["{component}"] = new ControlLayoutOptions(new Point({value}));'
-                
-                for i, line in enumerate(initialize_layout_lines):
-                    if re.search(pattern, line):
-                        self.logger.debug(f"Replacing line: {line}")
-                        initialize_layout_lines[i] = re.sub(pattern, replacement, line)
-                        self.logger.debug(f"With line: {initialize_layout_lines[i]}")
-                        break
-                else:
-                    self.logger.debug(f"Adding new line: {replacement}")
-                    initialize_layout_lines.append(f'            {replacement}')
+        for control, properties in changes.items():
+            control_pattern = rf'this\.{control}\s*='
+            control_index = next((i for i, line in enumerate(method_lines) if re.search(control_pattern, line)), -1)
+            
+            if control_index != -1:
+                # Found the control, now update its properties
+                insert_index = control_index + 1
+                for prop, value in properties.items():
+                    prop_pattern = rf'this\.{control}\.{prop}\s*='
+                    prop_index = next((i for i, line in enumerate(method_lines[control_index:], start=control_index) if re.search(prop_pattern, line)), -1)
+                    
+                    if prop_index != -1:
+                        # Property exists, update it
+                        method_lines[prop_index] = f"            this.{control}.{prop} = {value};"
+                        self.logger.debug(f"Updated property: {control}.{prop} = {value}")
+                    else:
+                        # Property doesn't exist, add it
+                        method_lines.insert(insert_index, f"            this.{control}.{prop} = {value};")
+                        insert_index += 1
+                        self.logger.debug(f"Added new property: {control}.{prop} = {value}")
+            else:
+                self.logger.warning(f"Control '{control}' not found in InitializeComponent method")
+
+        # Reconstruct the content with updated method
+        updated_content = '\n'.join(lines[:start_index+1] + method_lines + lines[end_index:])
         
-        lines[start_index+2:end_index] = initialize_layout_lines
-        new_content = '\n'.join(lines)
-        self.logger.debug(f"Updated content:\n{new_content}")
-        return new_content
+        return updated_content
 
     def _log_content_diff(self, old_content, new_content):
         self.logger.info("Logging content differences")
