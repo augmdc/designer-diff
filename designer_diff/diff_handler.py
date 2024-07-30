@@ -5,22 +5,25 @@ class DiffHandler:
         self.relevant_properties = ['Location', 'Size']
 
     def process_diff(self, diff_text):
-        changes = {}
+        changes = {'layouts': {}, 'layoutL': {}}
         lines = diff_text.split('\n')
-        current_component = None
+        current_layout = None
 
         for line in lines:
             if line.startswith('+'):
-                component_match = re.match(r'\+\s*this\.(\w+)\.', line)
-                if component_match:
-                    current_component = component_match.group(1)
-                    if current_component not in changes:
-                        changes[current_component] = {}
+                layout_match = re.match(r'\+\s*(layouts|layoutL)\[', line)
+                if layout_match:
+                    current_layout = layout_match.group(1)
+                    continue
 
-                for prop in self.relevant_properties:
-                    prop_match = re.match(rf'\+\s*this\.{current_component}\.{prop} = (.+);', line)
-                    if prop_match:
-                        value = prop_match.group(1)
-                        changes[current_component][prop] = value
+                if current_layout:
+                    component_match = re.match(r'\+\s*(layouts|layoutL)\[(\w+)\]\s*=\s*new\s*ControlLayoutOptions\((.*?)\);', line)
+                    if component_match:
+                        layout, component, value = component_match.groups()
+                        # Extract only the Point part
+                        point_match = re.search(r'new\s*Point\((.*?)\)', value)
+                        if point_match:
+                            point_value = point_match.group(1)
+                            changes[layout][component] = point_value
 
         return changes

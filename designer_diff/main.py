@@ -49,7 +49,7 @@ def main():
         diff = get_file_diff(file, args.branch, teleai_dir)
         if diff is not None:
             changes = diff_handler.process_diff(diff)
-            if changes:
+            if any(changes.values()):  # Check if any layout has changes
                 if code_updater.update_autogen_file(file, changes):
                     logger.info(f"Updated AutoGen file for {file}")
                 else:

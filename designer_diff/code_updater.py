@@ -43,12 +43,16 @@ class CodeUpdater:
         
         content = f"""using System;
 using System.Windows.Forms;
+using System.Drawing;
 
 namespace {namespace}
 {{
     public partial class {class_name}
     {{
-        // Auto-generated code will be inserted here
+        protected override void InitializeLayoutOptions()
+        {{
+            // Auto-generated code will be inserted here
+        }}
     }}
 }}
 """
@@ -60,9 +64,9 @@ namespace {namespace}
         insert_index = self._find_insert_index(lines)
 
         new_lines = []
-        for component, properties in changes.items():
-            for prop, value in properties.items():
-                new_line = f"        this.{component}.{prop} = {value};"
+        for layout, components in changes.items():
+            for component, value in components.items():
+                new_line = f"            {layout}[{component}] = new ControlLayoutOptions(new Point({value}));"
                 new_lines.append(new_line)
                 self.logger.debug(f"Adding line: {new_line}")
 
