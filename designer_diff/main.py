@@ -9,6 +9,15 @@ def setup_logging(verbose):
     level = logging.DEBUG if verbose else logging.INFO
     logging.basicConfig(level=level, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
+def find_teleai_root(teleai_dir):
+    """Find the teleai root directory based on the teleai directory."""
+    current_dir = teleai_dir
+    while current_dir != os.path.dirname(current_dir):  # Stop at the root directory
+        if os.path.basename(current_dir).lower() == 'teleai':
+            return current_dir
+        current_dir = os.path.dirname(current_dir)
+    return teleai_dir  # If no 'teleai' directory found, return the original directory
+
 def main():
     parser = argparse.ArgumentParser(description='Update AutoGen files based on Designer file changes.')
     parser.add_argument('--teleai-dir', help='Path to the teleai directory for finding Designer files')
@@ -20,6 +29,7 @@ def main():
     setup_logging(args.verbose)
     logger = logging.getLogger(__name__)
 
+    # Find teleai directory
     teleai_dir = args.teleai_dir or find_teleai_directory()
     if not teleai_dir:
         logger.error("Error: teleai directory not found.")
@@ -29,7 +39,8 @@ def main():
 
     logger.info(f"Using teleai directory for finding Designer files: {teleai_dir}")
 
-    teleai_root = args.teleai_root or teleai_dir
+    # Find teleai root directory
+    teleai_root = args.teleai_root or find_teleai_root(teleai_dir)
     logger.info(f"Using teleai root directory for namespace generation: {teleai_root}")
 
     designer_files = find_designer_files(teleai_dir)
@@ -48,7 +59,9 @@ def main():
         logger.info(f"Processing {file}")
         diff = get_file_diff(file, args.branch, teleai_dir)
         if diff is not None:
+            logger.debug(f"Diff found for {file}:\n{diff}")
             changes = diff_handler.process_diff(diff)
+            logger.debug(f"Processed changes: {changes}")
             if any(changes.values()):  # Check if any layout has changes
                 if code_updater.update_autogen_file(file, changes):
                     logger.info(f"Updated AutoGen file for {file}")
