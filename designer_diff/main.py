@@ -4,10 +4,42 @@ import argparse
 from git_operations import find_teleai_directory, find_designer_files, get_file_diff
 from diff_handler import DiffHandler
 from code_updater import CodeUpdater
+from datetime import datetime 
 
-def setup_logging(verbose):
+def setup_logging(verbose, log_file=None):
     level = logging.DEBUG if verbose else logging.INFO
-    logging.basicConfig(level=level, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    
+    # Create a formatter
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    
+    # Set up the root logger
+    root_logger = logging.getLogger()
+    root_logger.setLevel(level)
+    
+    # Clear any existing handlers
+    root_logger.handlers = []
+    
+    # Always set up console logging
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(level)
+    console_handler.setFormatter(formatter)
+    root_logger.addHandler(console_handler)
+    
+    # If log_file is specified, set up file logging
+    if log_file:
+        # Get the directory of the log file
+        log_dir = os.path.dirname(log_file)
+        
+        # If log_dir is not empty, ensure the directory exists
+        if log_dir:
+            os.makedirs(log_dir, exist_ok=True)
+        
+        file_handler = logging.FileHandler(log_file, encoding='utf-8')
+        file_handler.setLevel(level)
+        file_handler.setFormatter(formatter)
+        root_logger.addHandler(file_handler)
+        
+        root_logger.info(f"Logging to file: {log_file}")
 
 def find_teleai_root(teleai_dir):
     """Find the teleai root directory based on the teleai directory."""
@@ -24,10 +56,19 @@ def main():
     parser.add_argument('--teleai-root', help='Path to the teleai root directory for namespace generation')
     parser.add_argument('--branch', default='develop', help='Git branch to compare against (default: develop)')
     parser.add_argument('-v', '--verbose', action='store_true', help='Enable verbose output')
+    parser.add_argument('--init', action='store_true', help='Initialize AutoGen files for all Designer files')
+    parser.add_argument('--log-file', help='Path to the log file')
     args = parser.parse_args()
 
-    setup_logging(args.verbose)
+    # Generate a default log file name if not provided
+    if not args.log_file:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        args.log_file = f"autogen_update_{timestamp}.log"
+
+    setup_logging(args.verbose, args.log_file)
     logger = logging.getLogger(__name__)
+
+    logger.info("Starting AutoGen file update process")
 
     # Find teleai directory
     teleai_dir = args.teleai_dir or find_teleai_directory()
@@ -60,16 +101,18 @@ def main():
         diff = get_file_diff(file, args.branch, teleai_dir)
         changes = {}
         if diff is not None:
-            logger.debug(f"Diff found for {file}:\n{diff}")
+            logger.debug(f"Diff found for {file} (length: {len(diff)} characters)")
             changes = diff_handler.process_diff(diff)
             logger.debug(f"Processed changes: {changes}")
+        else:
+            logger.debug(f"No diff found for {file}")
 
-        success, content = code_updater.update_autogen_file(file, changes)
+        success, content = code_updater.update_autogen_file(file, changes, args.init)
         if success:
             logger.info(f"Updated AutoGen file for {file}")
-            logger.info(f"Full content of updated AutoGen file:\n{content}")
+            logger.debug(f"Full content length of updated AutoGen file: {len(content)} characters")
         else:
-            logger.warning(f"Failed to update AutoGen file for {file}")
+            logger.error(f"Failed to update AutoGen file for {file}")
 
     logger.info("All files processed.")
 
