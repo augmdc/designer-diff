@@ -11,7 +11,8 @@ def setup_logging(verbose):
 
 def main():
     parser = argparse.ArgumentParser(description='Update AutoGen files based on Designer file changes.')
-    parser.add_argument('--teleai-dir', help='Path to the teleai directory')
+    parser.add_argument('--teleai-dir', help='Path to the teleai directory for finding Designer files')
+    parser.add_argument('--teleai-root', help='Path to the teleai root directory for namespace generation')
     parser.add_argument('--branch', default='develop', help='Git branch to compare against (default: develop)')
     parser.add_argument('-v', '--verbose', action='store_true', help='Enable verbose output')
     args = parser.parse_args()
@@ -26,7 +27,10 @@ def main():
         logger.info("Please ensure the teleai directory exists in your project structure or specify it using --teleai-dir.")
         return
 
-    logger.info(f"Using teleai directory: {teleai_dir}")
+    logger.info(f"Using teleai directory for finding Designer files: {teleai_dir}")
+
+    teleai_root = args.teleai_root or teleai_dir
+    logger.info(f"Using teleai root directory for namespace generation: {teleai_root}")
 
     designer_files = find_designer_files(teleai_dir)
     if not designer_files:
@@ -34,9 +38,11 @@ def main():
         return
 
     logger.info(f"Found {len(designer_files)} Designer files.")
+    for file in designer_files:
+        logger.debug(f"Designer file: {file}")
 
     diff_handler = DiffHandler()
-    code_updater = CodeUpdater(diff_handler)
+    code_updater = CodeUpdater(diff_handler, teleai_root)
 
     for file in designer_files:
         logger.info(f"Processing {file}")

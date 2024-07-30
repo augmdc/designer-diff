@@ -2,8 +2,9 @@ import os
 import logging
 
 class CodeUpdater:
-    def __init__(self, diff_handler):
+    def __init__(self, diff_handler, teleai_root):
         self.diff_handler = diff_handler
+        self.teleai_root = teleai_root
         self.logger = logging.getLogger(__name__)
 
     def update_autogen_file(self, designer_file_path, changes):
@@ -37,11 +38,7 @@ class CodeUpdater:
     def _create_autogen_file(self, designer_file_path, autogen_file_path):
         class_name = os.path.basename(designer_file_path).replace('.Designer.cs', '')
         
-        teleai_root = self._find_teleai_root(designer_file_path)
-        if not teleai_root:
-            raise ValueError(f"Could not find teleai root directory for {designer_file_path}")
-        
-        relative_path = os.path.relpath(os.path.dirname(designer_file_path), teleai_root)
+        relative_path = os.path.relpath(os.path.dirname(designer_file_path), self.teleai_root)
         namespace = "TeleAI.Client." + ".".join(relative_path.split(os.path.sep))
         
         content = f"""using System;
@@ -57,14 +54,6 @@ namespace {namespace}
 """
         with open(autogen_file_path, 'w', encoding='utf-8') as file:
             file.write(content)
-
-    def _find_teleai_root(self, path):
-        current = os.path.dirname(path)
-        while current != os.path.dirname(current):  # Stop at the root
-            if 'teleai' in os.listdir(current):
-                return os.path.join(current, 'teleai')
-            current = os.path.dirname(current)
-        return None  # If teleai root is not found
 
     def _apply_changes(self, content, changes):
         lines = content.split('\n')

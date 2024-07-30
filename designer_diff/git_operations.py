@@ -46,19 +46,37 @@ def is_valid_teleai_directory(path):
     return True
 
 def find_designer_files(teleai_dir):
-    pattern = os.path.join(teleai_dir, 'client', 'TeleAiClient', 'UI2', 'VehicleUIControls', 
-                           'DashboardLayouts', '*', 'Dash*.Designer.cs')
-    files = glob.glob(pattern)
-    if not files:
-        logger.warning(f"No Designer files found in {pattern}")
-    return files
+    logger.info(f"Searching for Designer files in: {teleai_dir}")
+    
+    patterns = [
+        os.path.join(teleai_dir, '**', '*Dashboard*.Designer.cs'),
+        os.path.join(teleai_dir, '**', 'Dash*.Designer.cs'),
+        os.path.join(teleai_dir, '**', '*Loader*.Designer.cs')
+    ]
+    
+    all_files = []
+    for pattern in patterns:
+        logger.debug(f"Searching with pattern: {pattern}")
+        files = glob.glob(pattern, recursive=True)
+        logger.debug(f"Found {len(files)} files with pattern {pattern}")
+        all_files.extend(files)
+    
+    unique_files = list(set(all_files))
+    
+    if not unique_files:
+        logger.warning(f"No Designer files found in {teleai_dir}")
+    else:
+        logger.info(f"Found {len(unique_files)} unique Designer files")
+        for file in unique_files:
+            logger.debug(f"Found Designer file: {file}")
+    
+    return unique_files
 
 def get_file_diff(file_path, branch='develop', teleai_dir=None):
     try:
         repo = Repo(teleai_dir or os.path.dirname(file_path), search_parent_directories=True)
         relative_path = os.path.relpath(file_path, repo.working_tree_dir)
         
-        # Check if the file exists in the specified branch
         try:
             repo.git.ls_tree(branch, relative_path)
         except GitCommandError:
