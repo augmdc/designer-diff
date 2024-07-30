@@ -83,9 +83,12 @@ def get_file_diff(file_path, branch='develop', teleai_dir=None):
             logger.warning(f"File {relative_path} does not exist in branch {branch}")
             return None
 
-        diff = repo.git.diff(branch, '--', relative_path)
+        # Use --ignore-space-at-eol to ignore differences in line endings
+        diff = repo.git.diff(branch, '--', relative_path, ignore_space_at_eol=True, ignore_space_change=True)
         if not diff:
             logger.info(f"No changes detected for {relative_path}")
+        else:
+            logger.info(f"Changes detected for {relative_path}")
         return diff
     except GitCommandError as e:
         logger.error(f"Git command error: {e}")

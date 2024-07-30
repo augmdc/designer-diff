@@ -58,19 +58,18 @@ def main():
     for file in designer_files:
         logger.info(f"Processing {file}")
         diff = get_file_diff(file, args.branch, teleai_dir)
+        changes = {}
         if diff is not None:
             logger.debug(f"Diff found for {file}:\n{diff}")
             changes = diff_handler.process_diff(diff)
             logger.debug(f"Processed changes: {changes}")
-            if any(changes.values()):  # Check if any layout has changes
-                if code_updater.update_autogen_file(file, changes):
-                    logger.info(f"Updated AutoGen file for {file}")
-                else:
-                    logger.warning(f"Failed to update AutoGen file for {file}")
-            else:
-                logger.info(f"No relevant changes in {file}")
+
+        success, content = code_updater.update_autogen_file(file, changes)
+        if success:
+            logger.info(f"Updated AutoGen file for {file}")
+            logger.info(f"Full content of updated AutoGen file:\n{content}")
         else:
-            logger.info(f"No diff found for {file}")
+            logger.warning(f"Failed to update AutoGen file for {file}")
 
     logger.info("All files processed.")
 
