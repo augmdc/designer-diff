@@ -2,144 +2,118 @@
 
 ## Overview
 
-This tool automatically updates AutoGen files based on changes in Designer files within a teleai project structure. It compares the current state of Designer files against a specified Git branch (default: 'develop') and generates or updates corresponding AutoGen files.
+The AutoGen File Updater is a tool designed to automate the process of creating and updating AutoGen files based on changes in Designer files within the TeleAI project. This tool helps maintain synchronization between Designer files and their corresponding AutoGen files, ensuring that UI layouts are consistently represented across different file types.
 
 ## Features
 
-- Automatically locates teleai project directory
-- Finds all relevant Designer files
-- Compares Designer files against a specified Git branch
-- Creates or updates AutoGen files based on detected changes
-- Supports separate specification of teleai directory and teleai root directory
+- Automatically detect changes in Designer files
+- Create or update corresponding AutoGen files
+- Support for multiple layout types (Standard, L-Shaped, etc.)
+- Logging functionality for tracking operations and debugging
+- Initialization mode for creating AutoGen files for all existing Designer files
 
-## Prerequisites
+## Setup
 
-- Python 3.6 or higher
-- Git installed and accessible from command line
-- Access to the teleai project repository
+### Prerequisites
 
-## Installation
+- Python 3.7 or higher
+- Git (for detecting file changes)
 
-1. Clone this repository:
-   ```
-   git clone <repository-url>
-   cd <repository-directory>
-   ```
+### Installation
 
-2. Set up a virtual environment:
-   
-   On Windows:
+1. Clone the repository:
    ```
-   python -m venv venv
-   venv\Scripts\activate
-   ```
-   
-   On macOS and Linux:
-   ```
-   python3 -m venv venv
-   source venv/bin/activate
+   git clone https://github.com/your-repo/autogen-file-updater.git
+   cd autogen-file-updater
    ```
 
-   You should see `(venv)` at the beginning of your command prompt, indicating that the virtual environment is active.
-
-3. Install required Python packages:
+2. Install required dependencies:
    ```
    pip install -r requirements.txt
    ```
 
-4. When you're done working on the project, you can deactivate the virtual environment:
-   ```
-   deactivate
-   ```
-
 ## Usage
 
-Ensure your virtual environment is activated before running the script:
-
-On Windows:
-```
-venv\Scripts\activate
-```
-
-On macOS and Linux:
-```
-source venv/bin/activate
-```
-
-Then run the script using the following command:
+Run the main script with the following command:
 
 ```
 python main.py [options]
 ```
 
-### Command-line Options
+### Options:
 
-- `--teleai-dir PATH`: Specifies the path to the teleai directory for finding Designer files. If not provided, the script will attempt to find it automatically.
-- `--teleai-root PATH`: Specifies the path to the teleai root directory for namespace generation. If not provided, it defaults to the same value as `--teleai-dir`.
-- `--branch NAME`: Specifies the Git branch to compare against (default: 'develop').
-- `-v, --verbose`: Enables verbose output for debugging.
+- `--teleai-dir`: Path to the TeleAI directory for finding Designer files
+- `--teleai-root`: Path to the TeleAI root directory for namespace generation
+- `--init`: Initialize AutoGen files for all Designer files (use this for first-time setup)
+- `-v`, `--verbosity`: Increase output verbosity (e.g., -v, -vv, -vvv)
+- `--log-file`: Path to the log file (default: autogen_updater.log)
 
-### Examples
+### Examples:
 
-1. Basic usage (auto-detect teleai directory):
+1. Initialize AutoGen files for all Designer files:
    ```
-   python main.py
-   ```
-
-2. Specify teleai directory:
-   ```
-   python main.py --teleai-dir C:\path\to\teleai
+   python main.py --init --teleai-dir /path/to/teleai
    ```
 
-3. Specify both teleai directory and root:
+2. Update AutoGen files based on recent changes with increased verbosity:
    ```
-   python main.py --teleai-dir C:\path\to\teleai --teleai-root C:\path\to\teleai\root
+   python main.py --teleai-dir /path/to/teleai -vv
    ```
 
-4. Compare against a different branch with verbose output:
+3. Specify a custom log file:
    ```
-   python main.py --branch feature-branch --verbose
+   python main.py --teleai-dir /path/to/teleai --log-file my_custom_log.log
    ```
+
+## Project Structure
+
+Here's an overview of the key files in this project and their purposes:
+
+1. `main.py`: The entry point of the application. It parses command-line arguments, sets up logging, and orchestrates the overall process of updating AutoGen files.
+
+2. `code_analyzer.py`: Contains functions for analyzing Designer files, extracting relevant methods, and finding differences between different layout methods.
+
+3. `code_generator.py`: Responsible for generating the content of AutoGen files based on the analyzed Designer files.
+
+4. `code_updater.py`: Manages the process of updating AutoGen files, including checking for changes and writing new content.
+
+5. `file_operations.py`: Provides utility functions for file I/O operations, such as reading and writing files, and finding Designer files in the project directory.
+
+6. `git_operations.py`: Contains functions for interacting with Git, including finding the TeleAI directory and getting file diffs.
+
+7. `utils.py`: Includes various utility functions used across the project, such as finding the TeleAI directory and generating file paths.
 
 ## How It Works
 
-1. The script first determines the teleai directory, either from the `--teleai-dir` argument or by searching common locations.
-2. It then finds all Designer files (*.Designer.cs) within the teleai directory.
-3. For each Designer file, it compares the current state against the specified Git branch.
-4. If changes are detected, it processes the diff to extract relevant modifications.
-5. Based on the extracted changes, it either creates a new AutoGen file or updates an existing one.
-6. The AutoGen files are created with the correct namespace based on their location relative to the teleai root directory.
-
-## File Structure
-
-- `main.py`: The main script that orchestrates the entire process.
-- `git_operations.py`: Contains functions for Git-related operations and file searching.
-- `diff_handler.py`: Handles the processing of Git diffs to extract relevant changes.
-- `code_updater.py`: Manages the creation and updating of AutoGen files.
-- `requirements.txt`: Lists all Python package dependencies.
+1. The tool searches for the TeleAI directory in common locations or uses the provided path.
+2. It finds all relevant Designer files within the TeleAI project.
+3. For each Designer file:
+   - It checks if there are any changes compared to the develop branch.
+   - If changes are detected or in init mode, it extracts the InitializeComponent methods.
+   - It analyzes the methods to find differences between different layout types.
+   - It generates new content for the corresponding AutoGen file.
+   - It writes the new content to the AutoGen file.
+4. The tool logs all operations, successes, and failures to both the console and a log file.
 
 ## Troubleshooting
 
-- If the script fails to find the teleai directory, use the `--teleai-dir` option to specify it manually.
-- If you encounter namespace-related issues in the generated AutoGen files, ensure that the `--teleai-root` is correctly set to the root of your teleai project.
-- For more detailed logs, use the `--verbose` option.
-- If you encounter any package-related errors, ensure your virtual environment is activated and all dependencies are installed.
+If you encounter any issues:
+
+1. Check the log file for detailed error messages and the execution flow.
+2. Ensure you have the correct permissions to read Designer files and write AutoGen files.
+3. Verify that the TeleAI directory structure matches the expected layout.
+4. Make sure your Git repository is in a clean state and you have the latest changes from the develop branch.
 
 ## Contributing
 
-Contributions to improve the tool are welcome. Please follow these steps:
+Contributions to improve the AutoGen File Updater are welcome. Please follow these steps:
 
 1. Fork the repository
-2. Create a new branch for your feature
-3. Set up your virtual environment and install dependencies
-4. Commit your changes
-5. Push to your branch
-6. Create a new Pull Request
+2. Create a new branch for your feature or bug fix
+3. Make your changes and commit them with descriptive commit messages
+4. Push your changes to your fork
+5. Submit a pull request to the main repository
 
 ## License
 
 [Specify your license here]
-
-## Contact
-
-For any queries or issues, please [specify contact method or create an issue in the repository].

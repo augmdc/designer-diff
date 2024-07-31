@@ -1,17 +1,35 @@
 import argparse
 import logging
+import os
 from file_operations import find_designer_files
 from code_updater import CodeUpdater
 from utils import find_teleai_directory
 
-def configure_logging(verbosity):
+def configure_logging(verbosity, log_file):
     log_levels = {
         0: logging.WARNING,
         1: logging.INFO,
         2: logging.DEBUG
     }
-    logging.basicConfig(level=log_levels.get(verbosity, logging.DEBUG),
-                        format='%(asctime)s - %(levelname)s - %(message)s')
+    log_level = log_levels.get(verbosity, logging.DEBUG)
+
+    # Create a formatter
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+
+    # Configure root logger
+    logging.root.setLevel(log_level)
+
+    # Create console handler
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(log_level)
+    console_handler.setFormatter(formatter)
+    logging.root.addHandler(console_handler)
+
+    # Create file handler
+    file_handler = logging.FileHandler(log_file, mode='w')
+    file_handler.setLevel(log_level)
+    file_handler.setFormatter(formatter)
+    logging.root.addHandler(file_handler)
 
 def main():
     parser = argparse.ArgumentParser(description='Update AutoGen files based on Designer file changes.')
@@ -20,10 +38,11 @@ def main():
     parser.add_argument('--init', action='store_true', help='Initialize AutoGen files for all Designer files')
     parser.add_argument('-v', '--verbosity', action='count', default=0,
                         help='Increase output verbosity (e.g., -v, -vv, -vvv)')
+    parser.add_argument('--log-file', default='autogen_updater.log', help='Path to the log file')
     args = parser.parse_args()
 
-    # Configure logging based on verbosity argument
-    configure_logging(args.verbosity)
+    # Configure logging based on verbosity argument and log file
+    configure_logging(args.verbosity, args.log_file)
 
     # Log the start of the program
     logging.info("Starting AutoGen file update process")
@@ -43,9 +62,6 @@ def main():
     # Find Designer files
     designer_files = find_designer_files(teleai_dir)
 
-    # TESTING - USE ONLY DashHigway Designer file
-    test_file_name = [item for item in designer_files if item == 'C:\\Users\\achabris\\source\\repos\\teleai\\client\\TeleAiClient\\UI2\\VehicleUIControls\\DashboardLayouts\\Truck\\DashHighway.Designer.cs']
-
     if not designer_files:
         logging.warning("No Designer files found")
         return
@@ -57,9 +73,6 @@ def main():
 
     # Process each Designer file
     results = updater.process_designer_files(designer_files, init_mode=args.init)
-
-    # TESTING
-    #results = updater.process_designer_files(test_file_name, init_mode=args.init)
 
     # Print results
     for designer_file, success, message in results:

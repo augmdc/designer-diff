@@ -105,20 +105,23 @@ def generate_layout_options(control_properties: Dict[str, Dict[str, Dict[str, st
         logger.debug(f"Generating options for control: {control}")
         control_type = control_types.get(control, "System.Windows.Forms.Control")
         
+        # Determine which properties have changed across layouts
+        changed_properties = {}
+        for prop, values in control_properties[control].items():
+            if prop not in ['TabIndex', 'Name'] and len(set(values.values())) > 1:
+                changed_properties[prop] = values
+
         for layout in layout_names:
             layout_options = []
-            for prop, values in control_properties[control].items():
-                if prop not in ['TabIndex', 'Name']:
-                    if layout in values:
-                        layout_options.append(generate_property_option(prop, values[layout]))
-                    elif layout == 'S' and len(values) == 1:
-                        # If it's the standard layout and there's only one value, use it
-                        layout_options.append(generate_property_option(prop, list(values.values())[0]))
+            for prop, values in changed_properties.items():
+                if layout in values:
+                    layout_options.append(generate_property_option(prop, values[layout]))
             
             if layout_options:
                 options.append(f"            layout{layout}[{control}] = new ControlLayoutOptions(c => {{ var t = c as {control_type}; {' '.join(layout_options)} }});")
         
-        options.append('')  # Add a blank line for readability
+        if changed_properties:
+            options.append('')  # Add a blank line for readability
 
     logger.info(f"Generated layout options for {len(control_properties)} controls")
     return '\n'.join(options)
