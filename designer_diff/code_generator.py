@@ -21,7 +21,9 @@ def get_layout_identifier(method_name: str) -> str:
 
 def get_layout_names(initialize_methods):
     logger.info("Getting layout names")
-    layout_names = ['S', 'L']  # Always include both 'S' and 'L'
+    layout_names = list(set(get_layout_identifier(method) for method in initialize_methods))
+    if 'S' not in layout_names:
+        layout_names.insert(0, 'S')  # Ensure 'S' is always first
     logger.debug(f"Layout names: {layout_names}")
     return layout_names
 
@@ -34,8 +36,8 @@ def generate_autogen_content(designer_file_path, initialize_methods, teleai_root
     logger.debug(f"Class name: {class_name}")
     logger.debug(f"Namespace: {namespace}")
 
-    differences = find_differences(initialize_methods)
     layout_names = get_layout_names(initialize_methods)
+    control_properties = extract_control_properties(initialize_methods)
 
     content = f"""using System;
 using System.Collections.Generic;
@@ -52,7 +54,7 @@ namespace {namespace}
         {{
 {generate_layout_dictionaries(layout_names)}
 
-{generate_layout_options(differences, layout_names)}
+{generate_layout_options(control_properties, layout_names)}
         }}
         #endregion
     }}
@@ -69,50 +71,54 @@ def generate_layout_dictionaries(layout_names):
     
     lines.append('')
     for layout in layout_names:
-        layout_enum = 'Standard' if layout == 'S' else 'LShapedTelemetry'
+        layout_enum = 'Standard' if layout == 'S' else f'{layout}ShapedTelemetry'
         lines.append(f'            _layoutControlSettings.Add(UILayout.{layout_enum}, layout{layout});')
     
     logger.debug(f"Generated layout dictionaries:\n{lines}")
     return '\n'.join(lines)
 
-def generate_layout_options(differences: Dict[str, List[Tuple[str, str, str]]], layout_names: List[str]) -> str:
+def extract_control_properties(initialize_methods):
+    logger.info("Extracting control properties from InitializeComponent methods")
+    control_properties = {}
+    for method_name, method_content in initialize_methods.items():
+        layout = get_layout_identifier(method_name)
+        lines = extract_relevant_lines(method_content)
+        for control, prop, value in lines:
+            if control not in control_properties:
+                control_properties[control] = {}
+            if prop not in control_properties[control]:
+                control_properties[control][prop] = {}
+            control_properties[control][prop][layout] = value
+    logger.debug(f"Extracted properties for {len(control_properties)} controls")
+    return control_properties
+
+def generate_layout_options(control_properties: Dict[str, Dict[str, Dict[str, str]]], layout_names: List[str]) -> str:
     logger.info("Generating layout options")
     options = []
-    control_differences: Dict[str, Dict[str, Dict[str, str]]] = {}
 
-    for method_pair, diff in differences.items():
-        logger.debug(f"Processing differences for method pair: {method_pair}")
-        method_names = method_pair.split('_')
-        layout1 = get_layout_identifier(method_names[0])
-        layout2 = get_layout_identifier(method_names[1])
-        
-        for control, property_name, value in diff:
-            if control not in control_differences:
-                control_differences[control] = {}
-            if property_name not in control_differences[control]:
-                control_differences[control][property_name] = {}
-            control_differences[control][property_name][layout1] = value
-            control_differences[control][property_name][layout2] = value
-            logger.debug(f"Difference found: Control={control}, Property={property_name}, Value={value}, Layouts={layout1},{layout2}")
+    # Ensure 'S' layout comes first
+    layout_names = sorted(layout_names, key=lambda x: (x != 'S', x))
 
-    for control in sorted(control_differences.keys()):
+    for control in sorted(control_properties.keys()):
         logger.debug(f"Generating options for control: {control}")
         control_type = get_control_type(control)
-        control_options = []
+        
         for layout in layout_names:
             layout_options = []
-            for property_name, values in control_differences[control].items():
-                if property_name not in ['TabIndex', 'Name']:
+            for prop, values in control_properties[control].items():
+                if prop not in ['TabIndex', 'Name']:
                     if layout in values:
-                        layout_options.append(generate_property_option(control, control_type, property_name, values[layout]))
+                        layout_options.append(generate_property_option(prop, values[layout]))
+                    elif layout == 'S' and len(values) == 1:
+                        # If it's the standard layout and there's only one value, use it
+                        layout_options.append(generate_property_option(prop, list(values.values())[0]))
+            
             if layout_options:
-                control_options.append(f"            layout{layout}[{control}] = new ControlLayoutOptions(c =>\n            {{\n                {'; '.join(layout_options)}\n            }});")
+                options.append(f"            layout{layout}[{control}] = new ControlLayoutOptions(c => {{ var t = c as {control_type}; {' '.join(layout_options)} }});")
         
-        if control_options:
-            options.extend(control_options)
-            options.append('')  # Add a blank line for readability
+        options.append('')  # Add a blank line for readability
 
-    logger.info(f"Generated layout options for {len(control_differences)} controls")
+    logger.info(f"Generated layout options for {len(control_properties)} controls")
     return '\n'.join(options)
 
 def get_control_type(control: str) -> str:
@@ -135,10 +141,10 @@ def get_control_type(control: str) -> str:
     logger.debug("No specific control type found, defaulting to System.Windows.Forms.Control")
     return 'System.Windows.Forms.Control'
 
-def generate_property_option(control: str, control_type: str, property_name: str, value: str) -> str:
-    logger.debug(f"Generating property option: Control={control}, Type={control_type}, Property={property_name}, Value={value}")
+def generate_property_option(property_name: str, value: str) -> str:
+    logger.debug(f"Generating property option: Property={property_name}, Value={value}")
     formatted_value = format_property_value(property_name, value)
-    return f"var t = c as {control_type}; t.{property_name} = {formatted_value}"
+    return f"t.{property_name} = {formatted_value}"
 
 def format_property_value(property_name: str, value: str) -> str:
     logger.debug(f"Formatting property value: Property={property_name}, Value={value}")
@@ -154,54 +160,6 @@ def format_property_value(property_name: str, value: str) -> str:
         return f'((System.Drawing.Image)(resources.GetObject("{value}")))'
     else:
         return value
-
-def find_differences(methods):
-    logger.info("Finding differences between methods")
-    differences = {}
-    method_names = sorted(methods.keys())
-    
-    if len(method_names) < 2:
-        logger.warning("Less than 2 methods found, no differences to compare")
-        return differences
-
-    # Compare each pair of methods
-    for i in range(len(method_names)):
-        for j in range(i + 1, len(method_names)):
-            method1, method2 = method_names[i], method_names[j]
-            logger.debug(f"Comparing methods: {method1} and {method2}")
-            diff = compare_methods(methods[method1], methods[method2])
-            if diff:
-                differences[f"{method1}_{method2}"] = diff
-                logger.debug(f"Found {len(diff)} differences between {method1} and {method2}")
-    
-    logger.info(f"Total differences found: {sum(len(diff) for diff in differences.values())}")
-    return differences
-
-def compare_methods(method1, method2):
-    logger.debug("Comparing two methods")
-    lines1 = extract_relevant_lines(method1)
-    lines2 = extract_relevant_lines(method2)
-    diff = []
-    
-    controls1 = {line[0] for line in lines1}
-    controls2 = {line[0] for line in lines2}
-    all_controls = sorted(controls1.union(controls2))
-    
-    for control in all_controls:
-        properties1 = {line[1]: line[2] for line in lines1 if line[0] == control}
-        properties2 = {line[1]: line[2] for line in lines2 if line[0] == control}
-        all_properties = set(properties1.keys()).union(set(properties2.keys()))
-        
-        for prop in all_properties:
-            value1 = properties1.get(prop)
-            value2 = properties2.get(prop)
-            
-            if value1 != value2:
-                diff.append((control, prop, value1 or value2))
-                logger.debug(f"Difference found: Control={control}, Property={prop}, Value={value1 or value2}")
-    
-    logger.debug(f"Total differences found in method comparison: {len(diff)}")
-    return diff
 
 def extract_relevant_lines(method):
     logger.debug("Extracting relevant lines from method")
