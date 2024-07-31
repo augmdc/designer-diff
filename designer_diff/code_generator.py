@@ -27,6 +27,16 @@ def get_layout_names(initialize_methods):
     logger.debug(f"Layout names: {layout_names}")
     return layout_names
 
+def extract_control_types(designer_content: str) -> Dict[str, str]:
+    logger.info("Extracting control types from Designer file")
+    control_types = {}
+    pattern = r'(private|protected|public|internal|protected internal) ((?:\w+\.)*\w+) (\w+);'
+    matches = re.findall(pattern, designer_content)
+    for _, type_name, control_name in matches:
+        control_types[control_name] = type_name
+    logger.debug(f"Extracted types for {len(control_types)} controls")
+    return control_types
+
 def generate_autogen_content(designer_file_path, initialize_methods, teleai_root):
     logger.info(f"Generating AutoGen content for {designer_file_path}")
     class_name = os.path.basename(designer_file_path).replace('.Designer.cs', '')
@@ -38,6 +48,13 @@ def generate_autogen_content(designer_file_path, initialize_methods, teleai_root
 
     layout_names = get_layout_names(initialize_methods)
     control_properties = extract_control_properties(initialize_methods)
+
+    # Read the Designer file content
+    with open(designer_file_path, 'r') as file:
+        designer_content = file.read()
+
+    # Extract control types
+    control_types = extract_control_types(designer_content)
 
     content = f"""using System;
 using System.Collections.Generic;
@@ -54,7 +71,7 @@ namespace {namespace}
         {{
 {generate_layout_dictionaries(layout_names)}
 
-{generate_layout_options(control_properties, layout_names)}
+{generate_layout_options(control_properties, layout_names, control_types)}
         }}
         #endregion
     }}
@@ -77,22 +94,7 @@ def generate_layout_dictionaries(layout_names):
     logger.debug(f"Generated layout dictionaries:\n{lines}")
     return '\n'.join(lines)
 
-def extract_control_properties(initialize_methods):
-    logger.info("Extracting control properties from InitializeComponent methods")
-    control_properties = {}
-    for method_name, method_content in initialize_methods.items():
-        layout = get_layout_identifier(method_name)
-        lines = extract_relevant_lines(method_content)
-        for control, prop, value in lines:
-            if control not in control_properties:
-                control_properties[control] = {}
-            if prop not in control_properties[control]:
-                control_properties[control][prop] = {}
-            control_properties[control][prop][layout] = value
-    logger.debug(f"Extracted properties for {len(control_properties)} controls")
-    return control_properties
-
-def generate_layout_options(control_properties: Dict[str, Dict[str, Dict[str, str]]], layout_names: List[str]) -> str:
+def generate_layout_options(control_properties: Dict[str, Dict[str, Dict[str, str]]], layout_names: List[str], control_types: Dict[str, str]) -> str:
     logger.info("Generating layout options")
     options = []
 
@@ -101,7 +103,7 @@ def generate_layout_options(control_properties: Dict[str, Dict[str, Dict[str, st
 
     for control in sorted(control_properties.keys()):
         logger.debug(f"Generating options for control: {control}")
-        control_type = get_control_type(control)
+        control_type = control_types.get(control, "System.Windows.Forms.Control")
         
         for layout in layout_names:
             layout_options = []
@@ -121,30 +123,25 @@ def generate_layout_options(control_properties: Dict[str, Dict[str, Dict[str, st
     logger.info(f"Generated layout options for {len(control_properties)} controls")
     return '\n'.join(options)
 
-def get_control_type(control: str) -> str:
-    logger.debug(f"Getting control type for: {control}")
-    control_types = {
-        'autoButton': 'ClientUI.AutoButton',
-        'klVehicleTilt': 'ClientUI.klVehicleTilt',
-        'box': 'ClientUI.Box',
-        'label': 'System.Windows.Forms.Label',
-        'panel': 'System.Windows.Forms.Panel',
-        'picturebox': 'System.Windows.Forms.PictureBox',
-        'textBox': 'System.Windows.Forms.TextBox',
-    }
-    
-    for prefix, control_type in control_types.items():
-        if control.lower().startswith(prefix):
-            logger.debug(f"Control type found: {control_type}")
-            return control_type
-    
-    logger.debug("No specific control type found, defaulting to System.Windows.Forms.Control")
-    return 'System.Windows.Forms.Control'
+def extract_control_properties(initialize_methods):
+    logger.info("Extracting control properties from InitializeComponent methods")
+    control_properties = {}
+    for method_name, method_content in initialize_methods.items():
+        layout = get_layout_identifier(method_name)
+        lines = extract_relevant_lines(method_content)
+        for control, prop, value in lines:
+            if control not in control_properties:
+                control_properties[control] = {}
+            if prop not in control_properties[control]:
+                control_properties[control][prop] = {}
+            control_properties[control][prop][layout] = value
+    logger.debug(f"Extracted properties for {len(control_properties)} controls")
+    return control_properties
 
 def generate_property_option(property_name: str, value: str) -> str:
     logger.debug(f"Generating property option: Property={property_name}, Value={value}")
     formatted_value = format_property_value(property_name, value)
-    return f"t.{property_name} = {formatted_value}"
+    return f"t.{property_name} = {formatted_value};"
 
 def format_property_value(property_name: str, value: str) -> str:
     logger.debug(f"Formatting property value: Property={property_name}, Value={value}")
