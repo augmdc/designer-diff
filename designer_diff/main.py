@@ -1,35 +1,17 @@
 import argparse
 import logging
-import os
 from file_operations import find_designer_files
 from code_updater import CodeUpdater
 from utils import find_teleai_directory
 
-def configure_logging(verbosity, log_file):
+def configure_logging(verbosity):
     log_levels = {
         0: logging.WARNING,
         1: logging.INFO,
         2: logging.DEBUG
     }
-    log_level = log_levels.get(verbosity, logging.DEBUG)
-
-    # Create a formatter
-    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-
-    # Configure root logger
-    logging.root.setLevel(log_level)
-
-    # Create console handler
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(log_level)
-    console_handler.setFormatter(formatter)
-    logging.root.addHandler(console_handler)
-
-    # Create file handler
-    file_handler = logging.FileHandler(log_file, mode='w')
-    file_handler.setLevel(log_level)
-    file_handler.setFormatter(formatter)
-    logging.root.addHandler(file_handler)
+    logging.basicConfig(level=log_levels.get(verbosity, logging.DEBUG),
+                        format='%(asctime)s - %(levelname)s - %(message)s')
 
 def main():
     parser = argparse.ArgumentParser(description='Update AutoGen files based on Designer file changes.')
@@ -38,11 +20,12 @@ def main():
     parser.add_argument('--init', action='store_true', help='Initialize AutoGen files for all Designer files')
     parser.add_argument('-v', '--verbosity', action='count', default=0,
                         help='Increase output verbosity (e.g., -v, -vv, -vvv)')
-    parser.add_argument('--log-file', default='autogen_updater.log', help='Path to the log file')
+    parser.add_argument('--exclude-properties', default='TabIndex',
+                        help='Comma-separated list of properties to exclude (default: TabIndex)')
     args = parser.parse_args()
 
-    # Configure logging based on verbosity argument and log file
-    configure_logging(args.verbosity, args.log_file)
+    # Configure logging based on verbosity argument
+    configure_logging(args.verbosity)
 
     # Log the start of the program
     logging.info("Starting AutoGen file update process")
@@ -68,8 +51,9 @@ def main():
 
     logging.info(f"Found {len(designer_files)} Designer files")
 
-    # Create CodeUpdater instance
-    updater = CodeUpdater(teleai_root)
+    # Create CodeUpdater instance with excluded properties
+    excluded_properties = [prop.strip() for prop in args.exclude_properties.split(',')]
+    updater = CodeUpdater(teleai_root, excluded_properties)
 
     # Process each Designer file
     results = updater.process_designer_files(designer_files, init_mode=args.init)

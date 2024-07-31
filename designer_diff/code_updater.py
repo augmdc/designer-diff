@@ -5,8 +5,9 @@ from code_analyzer import extract_initialize_methods
 from code_generator import generate_autogen_content
 
 class CodeUpdater:
-    def __init__(self, teleai_root):
+    def __init__(self, teleai_root, excluded_properties):
         self.teleai_root = teleai_root
+        self.excluded_properties = excluded_properties
 
     def update_autogen_file(self, designer_file_path, init_mode=False):
         if not init_mode and not self.has_file_changed(designer_file_path):
@@ -18,7 +19,7 @@ class CodeUpdater:
 
         initialize_methods = extract_initialize_methods(designer_content)
 
-        autogen_content = generate_autogen_content(designer_file_path, initialize_methods, self.teleai_root)
+        autogen_content = generate_autogen_content(designer_file_path, initialize_methods, self.teleai_root, self.excluded_properties)
 
         autogen_file_path = self.get_autogen_path(designer_file_path)
         if write_file(autogen_file_path, autogen_content):
