@@ -56,10 +56,10 @@ def main():
     updater = CodeUpdater(teleai_root)
 
     # Process each Designer file
-    #results = updater.process_designer_files(designer_files, init_mode=args.init)
+    results = updater.process_designer_files(designer_files, init_mode=args.init)
 
     # TESTING
-    results = updater.process_designer_files(test_file_name, init_mode=args.init)
+    #results = updater.process_designer_files(test_file_name, init_mode=args.init)
 
     # Print results
     for designer_file, success, message in results:
