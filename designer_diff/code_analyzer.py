@@ -10,6 +10,9 @@ def find_differences(methods):
     differences = {}
     method_names = sorted(methods.keys())
     
+    if len(method_names) < 2:
+        return differences
+
     for method1, method2 in combinations(method_names, 2):
         diff = compare_methods(methods[method1], methods[method2])
         if diff:
@@ -22,15 +25,17 @@ def compare_methods(method1, method2):
     lines2 = extract_relevant_lines(method2)
     diff = []
     
-    for line1 in lines1:
-        for line2 in lines2:
-            control_match1 = re.search(r'this\.(\w+)\.', line1)
-            control_match2 = re.search(r'this\.(\w+)\.', line2)
-            
-            if control_match1 and control_match2 and control_match1.group(1) == control_match2.group(1):
-                if line1 != line2:
-                    diff.append((control_match1.group(1), line1, line2))
-                break
+    controls1 = {line.split('.')[0].split()[-1] for line in lines1}
+    controls2 = {line.split('.')[0].split()[-1] for line in lines2}
+    
+    common_controls = controls1.intersection(controls2)  # Changed back to intersection
+    
+    for control in common_controls:
+        lines1_control = [line for line in lines1 if line.startswith(f"this.{control}")]
+        lines2_control = [line for line in lines2 if line.startswith(f"this.{control}")]
+        
+        if lines1_control != lines2_control:
+            diff.append((control, lines1_control[0] if lines1_control else "", lines2_control[0] if lines2_control else ""))
     
     return diff
 

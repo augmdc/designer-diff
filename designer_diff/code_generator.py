@@ -8,12 +8,12 @@ def generate_autogen_content(designer_file_path, initialize_methods, teleai_root
     namespace = "TeleAI.Client." + ".".join(relative_path.split(os.path.sep))
 
     differences = find_differences(initialize_methods)
-    components_list = list(set(control for diff in differences.values() for control, _, _ in diff))
+    layout_names = get_layout_names(initialize_methods)
 
     content = f"""using System;
-using System.Windows.Forms;
-using System.Drawing;
 using System.Collections.Generic;
+using System.Drawing;
+using System.Windows.Forms;
 
 namespace {namespace}
 {{
@@ -22,12 +22,9 @@ namespace {namespace}
         #region Dash Layouts
         protected override void InitializeLayoutOptions()
         {{
-            var layoutS = new Dictionary<Control, ControlLayoutOptions>();
-            var layoutL = new Dictionary<Control, ControlLayoutOptions>();
-            _layoutControlSettings.Add(UILayout.Standard, layoutS);
-            _layoutControlSettings.Add(UILayout.LShapedTelemetry, layoutL);
+{generate_layout_dictionaries(layout_names)}
 
-{generate_layout_options(differences)}
+{generate_layout_options(differences, layout_names)}
         }}
         #endregion
     }}
@@ -35,29 +32,43 @@ namespace {namespace}
 """
     return content
 
-def generate_layout_options(differences):
+def get_layout_names(initialize_methods):
+    return ['S'] + [method[-1].upper() for method in initialize_methods if method != 'InitializeComponent']
+
+def generate_layout_dictionaries(layout_names):
+    lines = []
+    for layout in layout_names:
+        lines.append(f'            var Layout{layout} = new Dictionary<Control, ControlLayoutOptions>();')
+    
+    lines.append('')
+    for layout in layout_names:
+        layout_enum = 'Standard' if layout == 'S' else f'{layout}ShapedTelemetry'
+        lines.append(f'            _layoutControlSettings.Add(UILayout.{layout_enum}, Layout{layout});')
+    
+    return '\n'.join(lines)
+
+def generate_layout_options(differences, layout_names):
     options = []
-    layout_map = {
-        'InitializeComponent': 'S',
-        'InitializeComponent_LShaped': 'L'
-    }
+    all_controls = set()
+    control_differences = {}
 
     for method_pair, diff in differences.items():
-        layouts = method_pair.split('_')
-        for i in range(len(layouts) - 1):
-            for j in range(i + 1, len(layouts)):
-                layout1 = layouts[i]
-                layout2 = layouts[j]
-                layout1_char = layout_map.get(layout1, layout1[-1])
-                layout2_char = layout_map.get(layout2, layout2[-1])
+        for control, line1, line2 in diff:
+            if control not in control_differences:
+                control_differences[control] = {}
+            layout1, layout2 = method_pair.split('_')
+            layout1_char = layout1[-1].upper() if layout1 != "InitializeComponent" else "S"
+            layout2_char = layout2[-1].upper() if layout2 != "InitializeComponent" else "S"
+            control_differences[control][layout1_char] = line1
+            control_differences[control][layout2_char] = line2
+            all_controls.add(control)
 
-                for control, line1, line2 in diff:
-                    lambda1 = generate_lambda_expression(control, line1)
-                    lambda2 = generate_lambda_expression(control, line2)
-                    
-                    options.append(f'            layout{layout1_char}[{control}] = new ControlLayoutOptions({lambda1});')
-                    options.append(f'            layout{layout2_char}[{control}] = new ControlLayoutOptions({lambda2});')
-                    options.append('')  # Add a blank line for readability
+    for control in sorted(all_controls):
+        for layout in layout_names:
+            if layout in control_differences[control]:
+                lambda_expr = generate_lambda_expression(control, control_differences[control][layout])
+                options.append(f'            Layout{layout}[{control}] = new ControlLayoutOptions({lambda_expr});')
+        options.append('')  # Add a blank line for readability
 
     return '\n'.join(options)
 
@@ -77,8 +88,12 @@ def generate_lambda_expression(control, line):
             return f'new Point({value})'
         elif property == 'Size':
             return f'new Size({value})'
-        elif value.lower() in ['true', 'false']:
+        elif property == 'Visible':
             return f'c => {{ c.Visible = {value.lower()}; }}'
+        elif property.startswith('Middle') or property.startswith('Selected'):
+            return f'c => {{ var t = c as AutoButton; t.{property} = {value}; }}'
+        elif property == 'TextAlign':
+            return f'c => {{ var t = c as Button; t.{property} = {value}; }}'
         else:
             return f'c => {{ var t = c as Control; t.{property} = {value}; }}'
     else:
