@@ -148,18 +148,39 @@ def generate_property_option(property_name: str, value: str) -> str:
 
 def format_property_value(property_name: str, value: str) -> str:
     logger.debug(f"Formatting property value: Property={property_name}, Value={value}")
-    if property_name == 'Location' or property_name == 'Size':
-        # Remove 'new System.Drawing.Point' or 'new System.Drawing.Size' if present in the value
-        value = re.sub(r'^new System\.Drawing\.(Point|Size)', '', value).strip()
-        return f'new System.Drawing.{property_name}{value}'
-    elif property_name == 'Visible':
-        return value.lower()
-    elif property_name == 'TextAlign':
-        return f'System.Drawing.ContentAlignment.{value}'
-    elif property_name.startswith('Middle') or property_name.startswith('Selected'):
-        return f'((System.Drawing.Image)(resources.GetObject("{value}")))'
+    
+    # Pattern to match fully qualified type names
+    type_pattern = r'((?:[a-zA-Z_]\w*\.)*[a-zA-Z_]\w*)'
+    
+    # Check if the value starts with 'new' followed by a type name
+    new_pattern = rf'^new\s+{type_pattern}\s*'
+    new_match = re.match(new_pattern, value)
+    
+    if new_match:
+        # If it starts with 'new', keep the 'new' and the type name
+        type_name = new_match.group(1)
+        remaining = value[new_match.end():].strip()
+        
+        # Check if the remaining part starts with the same type name
+        if remaining.startswith(type_name):
+            remaining = remaining[len(type_name):].strip()
+        
+        return f'new {type_name}{remaining}'
     else:
-        return value
+        # If it doesn't start with 'new', check for a type name at the start
+        type_match = re.match(type_pattern, value)
+        if type_match:
+            type_name = type_match.group(1)
+            remaining = value[type_match.end():].strip()
+            
+            # Check if the remaining part starts with the same type name
+            if remaining.startswith(type_name):
+                remaining = remaining[len(type_name):].strip()
+            
+            return f'{type_name}{remaining}'
+    
+    # If no duplication found, return the original value
+    return value
 
 def extract_relevant_lines(method):
     logger.debug("Extracting relevant lines from method")
