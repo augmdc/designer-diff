@@ -148,10 +148,10 @@ def generate_property_option(property_name: str, value: str) -> str:
 
 def format_property_value(property_name: str, value: str) -> str:
     logger.debug(f"Formatting property value: Property={property_name}, Value={value}")
-    if property_name == 'Location':
-        return f'new System.Drawing.Point{value}'
-    elif property_name == 'Size':
-        return f'new System.Drawing.Size{value}'
+    if property_name == 'Location' or property_name == 'Size':
+        # Remove 'new System.Drawing.Point' or 'new System.Drawing.Size' if present in the value
+        value = re.sub(r'^new System\.Drawing\.(Point|Size)', '', value).strip()
+        return f'new System.Drawing.{property_name}{value}'
     elif property_name == 'Visible':
         return value.lower()
     elif property_name == 'TextAlign':
