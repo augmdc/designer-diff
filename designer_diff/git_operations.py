@@ -59,7 +59,15 @@ def find_changed_designer_files(repo_path, branch=None):
             branch = repo.active_branch.name
         
         changed_files = repo.git.diff('--name-only', branch, '--', '*.Designer.cs').splitlines()
-        return [file for file in changed_files if file.endswith('.Designer.cs')]
+        
+        # Filter files to only include those in the correct directory
+        dashboard_layouts_dir = os.path.join('client', 'TeleAiClient', 'UI2', 'VehicleUIControls', 'DashboardLayouts')
+        filtered_files = [
+            file for file in changed_files 
+            if file.startswith(dashboard_layouts_dir) and file.endswith('.Designer.cs')
+        ]
+        
+        return filtered_files
     except Exception as e:
         logger.error(f"Error finding changed Designer files: {e}")
     return []
