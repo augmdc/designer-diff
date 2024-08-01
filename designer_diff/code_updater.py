@@ -1,9 +1,8 @@
 import os
-import re
 import logging
 from file_operations import read_file, write_file
 from code_analyzer import extract_initialize_methods
-from code_generator import generate_autogen_content, extract_control_properties
+from code_generator import generate_autogen_content
 
 logger = logging.getLogger(__name__)
 
@@ -12,9 +11,6 @@ class CodeUpdater:
         self.teleai_root = teleai_root
 
     def update_autogen_file(self, relative_designer_file_path, init_mode=False):
-        logger.info(f"Updating AutoGen file for {relative_designer_file_path}")
-        
-        # Convert relative path to absolute path
         designer_file_path = os.path.join(self.teleai_root, relative_designer_file_path)
         
         designer_content = read_file(designer_file_path)
@@ -23,13 +19,10 @@ class CodeUpdater:
             return False, f"Failed to read {designer_file_path}"
 
         initialize_methods = extract_initialize_methods(designer_content)
-        
-        # Always generate new content from the Designer file
         updated_content = generate_autogen_content(designer_file_path, initialize_methods, self.teleai_root)
 
         autogen_file_path = self.get_autogen_path(designer_file_path)
         if write_file(autogen_file_path, updated_content):
-            logger.info(f"Successfully updated AutoGen file: {autogen_file_path}")
             return True, f"Updated AutoGen file: {autogen_file_path}"
         else:
             logger.error(f"Failed to write AutoGen file: {autogen_file_path}")
@@ -43,7 +36,6 @@ class CodeUpdater:
     def process_designer_files(self, relative_designer_files, init_mode=False):
         results = []
         for relative_designer_file in relative_designer_files:
-            logger.info(f"Processing Designer file: {relative_designer_file}")
             success, message = self.update_autogen_file(relative_designer_file, init_mode)
             results.append((relative_designer_file, success, message))
         return results

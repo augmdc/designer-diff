@@ -25,17 +25,13 @@ def main():
     args = parser.parse_args()
 
     configure_logging(args.verbosity)
-    logging.info("Starting AutoGen file update process")
 
     teleai_dir = args.teleai_dir or find_teleai_directory()
     if not teleai_dir:
         logging.error("Error: teleai directory not found.")
         return
 
-    logging.info(f"Using teleai directory: {teleai_dir}")
-
     teleai_root = args.teleai_root or teleai_dir
-    logging.info(f"Using teleai root directory: {teleai_root}")
 
     if args.init:
         designer_files = find_designer_files(teleai_dir)
@@ -44,14 +40,11 @@ def main():
         if branch is None:
             logging.error("Failed to determine the current branch. Please specify a branch using --branch.")
             return
-        logging.info(f"Using branch: {branch}")
         designer_files = find_changed_designer_files(teleai_root, branch)
 
     if not designer_files:
         logging.warning("No Designer files found or changed")
         return
-
-    logging.info(f"Found {len(designer_files)} Designer files to process")
 
     updater = CodeUpdater(teleai_root)
     results = updater.process_designer_files(designer_files, init_mode=args.init)
@@ -61,8 +54,6 @@ def main():
             logging.info(f"{designer_file}: Success - {message}")
         else:
             logging.error(f"{designer_file}: Failure - {message}")
-
-    logging.info("All files processed.")
 
 if __name__ == "__main__":
     main()
