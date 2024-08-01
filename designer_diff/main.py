@@ -1,8 +1,9 @@
 import argparse
 import logging
-from file_operations import find_designer_files
+from git_operations import find_changed_designer_files, get_current_branch
 from code_updater import CodeUpdater
 from utils import find_teleai_directory
+from file_operations import find_designer_files
 
 def configure_logging(verbosity):
     log_levels = {
@@ -20,17 +21,12 @@ def main():
     parser.add_argument('--init', action='store_true', help='Initialize AutoGen files for all Designer files')
     parser.add_argument('-v', '--verbosity', action='count', default=0,
                         help='Increase output verbosity (e.g., -v, -vv, -vvv)')
-    parser.add_argument('--exclude-properties', default='TabIndex',
-                        help='Comma-separated list of properties to exclude (default: TabIndex)')
+    parser.add_argument('--branch', help='Git branch to compare against (default: current branch)')
     args = parser.parse_args()
 
-    # Configure logging based on verbosity argument
     configure_logging(args.verbosity)
-
-    # Log the start of the program
     logging.info("Starting AutoGen file update process")
 
-    # Find teleai directory
     teleai_dir = args.teleai_dir or find_teleai_directory()
     if not teleai_dir:
         logging.error("Error: teleai directory not found.")
@@ -38,27 +34,27 @@ def main():
 
     logging.info(f"Using teleai directory: {teleai_dir}")
 
-    # Find teleai root directory (assuming it's the same as teleai_dir for now)
     teleai_root = args.teleai_root or teleai_dir
     logging.info(f"Using teleai root directory: {teleai_root}")
 
-    # Find Designer files
-    designer_files = find_designer_files(teleai_dir)
+    if args.init:
+        designer_files = find_designer_files(teleai_dir)
+    else:
+        branch = args.branch or get_current_branch(teleai_root)
+        if branch is None:
+            logging.error("Failed to determine the current branch. Please specify a branch using --branch.")
+            return
+        designer_files = find_changed_designer_files(teleai_root, branch)
 
     if not designer_files:
-        logging.warning("No Designer files found")
+        logging.warning("No Designer files found or changed")
         return
 
-    logging.info(f"Found {len(designer_files)} Designer files")
+    logging.info(f"Found {len(designer_files)} Designer files to process")
 
-    # Create CodeUpdater instance with excluded properties
-    excluded_properties = [prop.strip() for prop in args.exclude_properties.split(',')]
-    updater = CodeUpdater(teleai_root, excluded_properties)
-
-    # Process each Designer file
+    updater = CodeUpdater(teleai_root)
     results = updater.process_designer_files(designer_files, init_mode=args.init)
 
-    # Print results
     for designer_file, success, message in results:
         if success:
             logging.info(f"{designer_file}: Success - {message}")

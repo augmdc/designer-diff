@@ -57,32 +57,48 @@ def is_valid_teleai_directory(path):
     logger.info(f"{path} is a valid teleai directory")
     return True
 
-def find_designer_files(teleai_dir):
-    logger.info(f"Searching for Designer files in: {teleai_dir}")
-    
-    patterns = [
-        os.path.join(teleai_dir, '**', '*Dashboard*.Designer.cs'),
-        os.path.join(teleai_dir, '**', 'Dash*.Designer.cs'),
-        os.path.join(teleai_dir, '**', '*Loader*.Designer.cs')
-    ]
-    
-    all_files = []
-    for pattern in patterns:
-        logger.debug(f"Searching with pattern: {pattern}")
-        files = glob.glob(pattern, recursive=True)
-        logger.debug(f"Found {len(files)} files with pattern {pattern}")
-        all_files.extend(files)
-    
-    unique_files = list(set(all_files))
-    
-    if not unique_files:
-        logger.warning(f"No Designer files found in {teleai_dir}")
-    else:
-        logger.info(f"Found {len(unique_files)} unique Designer files")
-        for file in unique_files:
-            logger.debug(f"Found Designer file: {file}")
-    
-    return unique_files
+def get_current_branch(repo_path):
+    logger.info(f"Getting current branch for repository: {repo_path}")
+    try:
+        repo = Repo(repo_path)
+        current_branch = repo.active_branch.name
+        logger.info(f"Current branch: {current_branch}")
+        return current_branch
+    except GitCommandError as e:
+        logger.error(f"Git command error while getting current branch: {e}")
+    except ValueError as e:
+        logger.error(f"Invalid repository while getting current branch: {e}")
+    except Exception as e:
+        logger.error(f"Unexpected error while getting current branch: {e}")
+    return None
+
+def find_changed_designer_files(repo_path, branch=None):
+    logger.info(f"Finding changed Designer files")
+    try:
+        repo = Repo(repo_path)
+        if branch is None:
+            branch = repo.active_branch.name
+        logger.info(f"Comparing against branch: {branch}")
+        
+        changed_files = repo.git.diff('--name-only', branch, '--', '*.Designer.cs').splitlines()
+        
+        designer_files = [file for file in changed_files if file.endswith('.Designer.cs')]
+        
+        if not designer_files:
+            logger.info("No changed Designer files found")
+        else:
+            logger.info(f"Found {len(designer_files)} changed Designer files")
+            for file in designer_files:
+                logger.debug(f"Changed Designer file: {file}")
+        
+        return designer_files
+    except GitCommandError as e:
+        logger.error(f"Git command error: {e}")
+    except ValueError as e:
+        logger.error(f"Invalid repository: {e}")
+    except Exception as e:
+        logger.error(f"Unexpected error in find_changed_designer_files: {e}")
+    return []
 
 def get_file_diff(file_path, branch='develop', teleai_dir=None):
     logger.info(f"Getting diff for {file_path} against {branch} branch")
@@ -97,7 +113,6 @@ def get_file_diff(file_path, branch='develop', teleai_dir=None):
             logger.warning(f"File {relative_path} does not exist in branch {branch}")
             return None
 
-        # Use --ignore-space-at-eol to ignore differences in line endings
         diff = repo.git.diff(branch, '--', relative_path, ignore_space_at_eol=True, ignore_space_change=True)
         if not diff:
             logger.info(f"No changes detected for {relative_path}")

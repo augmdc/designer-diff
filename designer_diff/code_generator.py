@@ -3,7 +3,6 @@ import re
 import logging
 from typing import Dict, List, Tuple
 
-# Configure logging
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
@@ -37,7 +36,7 @@ def extract_control_types(designer_content: str) -> Dict[str, str]:
     logger.debug(f"Extracted types for {len(control_types)} controls")
     return control_types
 
-def generate_autogen_content(designer_file_path, initialize_methods, teleai_root, excluded_properties):
+def generate_autogen_content(designer_file_path, initialize_methods, teleai_root):
     logger.info(f"Generating AutoGen content for {designer_file_path}")
     class_name = os.path.basename(designer_file_path).replace('.Designer.cs', '')
     relative_path = os.path.relpath(os.path.dirname(designer_file_path), teleai_root)
@@ -47,8 +46,7 @@ def generate_autogen_content(designer_file_path, initialize_methods, teleai_root
     logger.debug(f"Namespace: {namespace}")
 
     layout_names = get_layout_names(initialize_methods)
-    control_properties = extract_control_properties(initialize_methods, excluded_properties)
-    this_size_properties = extract_this_size_properties(initialize_methods)
+    control_properties = extract_control_properties(initialize_methods)
 
     # Read the Designer file content
     with open(designer_file_path, 'r') as file:
@@ -72,10 +70,14 @@ namespace {namespace}
         {{
 {generate_layout_dictionaries(layout_names)}
 
-{generate_this_size_options(this_size_properties, layout_names)}
 {generate_layout_options(control_properties, layout_names, control_types)}
         }}
         #endregion
+
+        protected override void OnInitializeLayoutOptionsCompleted()
+        {{
+            // Add any post-initialization logic here
+        }}
     }}
 }}
 """
@@ -96,17 +98,6 @@ def generate_layout_dictionaries(layout_names):
     logger.debug(f"Generated layout dictionaries:\n{lines}")
     return '\n'.join(lines)
 
-def generate_this_size_options(this_size_properties, layout_names):
-    logger.info("Generating 'this.Size' options")
-    lines = []
-    for layout in layout_names:
-        if layout in this_size_properties:
-            size = this_size_properties[layout]
-            lines.append(f'            layout{layout}[this] = new ControlLayoutOptions(new Size({size[0]}, {size[1]}));')
-    
-    logger.debug(f"Generated 'this.Size' options:\n{lines}")
-    return '\n'.join(lines) + '\n'
-
 def generate_layout_options(control_properties: Dict[str, Dict[str, Dict[str, str]]], layout_names: List[str], control_types: Dict[str, str]) -> str:
     logger.info("Generating layout options")
     options = []
@@ -121,7 +112,7 @@ def generate_layout_options(control_properties: Dict[str, Dict[str, Dict[str, st
         # Determine which properties have changed across layouts
         changed_properties = {}
         for prop, values in control_properties[control].items():
-            if len(set(values.values())) > 1:
+            if prop not in ['TabIndex', 'Name'] and len(set(values.values())) > 1:
                 changed_properties[prop] = values
 
         for layout in layout_names:
@@ -139,35 +130,20 @@ def generate_layout_options(control_properties: Dict[str, Dict[str, Dict[str, st
     logger.info(f"Generated layout options for {len(control_properties)} controls")
     return '\n'.join(options)
 
-def extract_control_properties(initialize_methods, excluded_properties):
+def extract_control_properties(initialize_methods):
     logger.info("Extracting control properties from InitializeComponent methods")
     control_properties = {}
     for method_name, method_content in initialize_methods.items():
         layout = get_layout_identifier(method_name)
-        lines = extract_relevant_lines(method_content, excluded_properties)
+        lines = extract_relevant_lines(method_content)
         for control, prop, value in lines:
-            if control != 'this':  # Exclude 'this' as it's handled separately
-                if control not in control_properties:
-                    control_properties[control] = {}
-                if prop not in control_properties[control]:
-                    control_properties[control][prop] = {}
-                control_properties[control][prop][layout] = value
+            if control not in control_properties:
+                control_properties[control] = {}
+            if prop not in control_properties[control]:
+                control_properties[control][prop] = {}
+            control_properties[control][prop][layout] = value
     logger.debug(f"Extracted properties for {len(control_properties)} controls")
     return control_properties
-
-def extract_this_size_properties(initialize_methods):
-    logger.info("Extracting 'this.Size' properties")
-    this_size_properties = {}
-    for method_name, method_content in initialize_methods.items():
-        layout = get_layout_identifier(method_name)
-        lines = method_content.split('\n')
-        for line in lines:
-            match = re.search(r'this\.Size\s*=\s*new\s+System\.Drawing\.Size\((\d+),\s*(\d+)\)', line)
-            if match:
-                width, height = match.groups()
-                this_size_properties[layout] = (width, height)
-                logger.debug(f"Found 'this.Size' for layout {layout}: ({width}, {height})")
-    return this_size_properties
 
 def generate_property_option(property_name: str, value: str) -> str:
     logger.debug(f"Generating property option: Property={property_name}, Value={value}")
@@ -210,7 +186,7 @@ def format_property_value(property_name: str, value: str) -> str:
     # If no duplication found, return the original value
     return value
 
-def extract_relevant_lines(method, excluded_properties):
+def extract_relevant_lines(method):
     logger.debug("Extracting relevant lines from method")
     lines = method.split('\n')
     relevant_lines = []
@@ -223,9 +199,8 @@ def extract_relevant_lines(method, excluded_properties):
             control = match.group('control')
             property = match.group('property')
             value = match.group('value').strip()
-            if property not in excluded_properties:
-                relevant_lines.append((control, property, value))
-                logger.debug(f"Relevant line found: Control={control}, Property={property}, Value={value}")
+            relevant_lines.append((control, property, value))
+            logger.debug(f"Relevant line found: Control={control}, Property={property}, Value={value}")
     
     logger.debug(f"Total relevant lines extracted: {len(relevant_lines)}")
     return relevant_lines
