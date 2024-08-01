@@ -16,7 +16,6 @@ def configure_logging(verbosity):
 
 def main():
     parser = argparse.ArgumentParser(description='Update AutoGen files based on Designer file changes.')
-    parser.add_argument('--teleai-dir', help='Path to the teleai directory for finding Designer files')
     parser.add_argument('--teleai-root', help='Path to the teleai root directory for namespace generation')
     parser.add_argument('--init', action='store_true', help='Initialize AutoGen files for all Designer files')
     parser.add_argument('-v', '--verbosity', action='count', default=0,
@@ -26,9 +25,9 @@ def main():
 
     configure_logging(args.verbosity)
 
-    teleai_dir = args.teleai_dir or find_teleai_directory()
+    teleai_dir = find_teleai_directory()
     if not teleai_dir:
-        logging.error("Error: teleai directory not found.")
+        logging.error("Error: Not inside a Git repository or teleai directory not found.")
         return
 
     teleai_root = args.teleai_root or teleai_dir
