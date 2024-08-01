@@ -44,6 +44,7 @@ def main():
         if branch is None:
             logging.error("Failed to determine the current branch. Please specify a branch using --branch.")
             return
+        logging.info(f"Using branch: {branch}")
         designer_files = find_changed_designer_files(teleai_root, branch)
 
     if not designer_files:

@@ -35,22 +35,42 @@ def extract_control_types(designer_content: str) -> Dict[str, str]:
         control_types[control_name] = type_name
     logger.debug(f"Extracted types for {len(control_types)} controls")
     return control_types
+    
+def read_file(file_path):
+    try:
+        with open(file_path, 'r', encoding='utf-8') as file:
+            return file.read()
+    except IOError as e:
+        logger.error(f"Error reading file {file_path}: {e}")
+        return None
+
+def extract_namespace(designer_content):
+    namespace_match = re.search(r'namespace\s+([\w.]+)', designer_content)
+    if namespace_match:
+        return namespace_match.group(1)
+    else:
+        logger.error("Namespace not found in Designer file")
+        return None
 
 def generate_autogen_content(designer_file_path, initialize_methods, teleai_root):
     logger.info(f"Generating AutoGen content for {designer_file_path}")
     class_name = os.path.basename(designer_file_path).replace('.Designer.cs', '')
-    relative_path = os.path.relpath(os.path.dirname(designer_file_path), teleai_root)
-    namespace = "TeleAI.Client." + ".".join(relative_path.split(os.path.sep)).replace("client.TeleAiClient.", "")
+
+    # Read the Designer file content
+    with open(designer_file_path, 'r', encoding='utf-8') as file:
+        designer_content = file.read()
+
+    # Extract namespace from Designer file
+    namespace = extract_namespace(designer_content)
+    if namespace is None:
+        logger.error(f"Failed to extract namespace from {designer_file_path}")
+        return None
 
     logger.debug(f"Class name: {class_name}")
-    logger.debug(f"Namespace: {namespace}")
+    logger.debug(f"Extracted namespace: {namespace}")
 
     layout_names = get_layout_names(initialize_methods)
     control_properties = extract_control_properties(initialize_methods)
-
-    # Read the Designer file content
-    with open(designer_file_path, 'r') as file:
-        designer_content = file.read()
 
     # Extract control types
     control_types = extract_control_types(designer_content)
@@ -71,13 +91,10 @@ namespace {namespace}
 {generate_layout_dictionaries(layout_names)}
 
 {generate_layout_options(control_properties, layout_names, control_types)}
+
+            OnInitializeLayoutOptionsCompleted();
         }}
         #endregion
-
-        protected override void OnInitializeLayoutOptionsCompleted()
-        {{
-            // Add any post-initialization logic here
-        }}
     }}
 }}
 """

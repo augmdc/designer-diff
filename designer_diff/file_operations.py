@@ -29,22 +29,31 @@ def write_file(file_path, content):
 
 def find_designer_files(teleai_dir):
     logger.info(f"Finding Designer files in: {teleai_dir}")
-    patterns = [
-        os.path.join(teleai_dir, '**', '*Dashboard*.Designer.cs'),
-        os.path.join(teleai_dir, '**', 'Dash*.Designer.cs'),
-        os.path.join(teleai_dir, '**', '*Loader*.Designer.cs')
-    ]
+    dashboard_layouts_dir = os.path.join(teleai_dir, 'client', 'TeleAiClient', 'UI2', 'VehicleUIControls', 'DashboardLayouts')
+    
+    logger.debug(f"Looking for DashboardLayouts directory: {dashboard_layouts_dir}")
+    if not os.path.exists(dashboard_layouts_dir):
+        logger.error(f"DashboardLayouts directory not found: {dashboard_layouts_dir}")
+        return []
+
+    pattern = 'Dash*.Designer.cs'
+    logger.debug(f"Using search pattern: {pattern}")
     
     all_files = []
-    for pattern in patterns:
-        files = glob.glob(pattern, recursive=True)
-        all_files.extend(files)
+    for root, dirs, files in os.walk(dashboard_layouts_dir):
+        for file in files:
+            if file.startswith('Dash') and file.endswith('.Designer.cs'):
+                full_path = os.path.join(root, file)
+                all_files.append(full_path)
+                logger.debug(f"Found Designer file: {full_path}")
+
+    logger.debug(f"Found {len(all_files)} files matching the pattern")
     
     # Convert absolute paths to relative paths
     relative_files = [os.path.relpath(file, teleai_dir) for file in all_files]
     
-    logger.info(f"Found {len(relative_files)} Designer files")
+    logger.info(f"Found {len(relative_files)} Dashboard Designer files")
     for file in relative_files:
-        logger.debug(f"Found Designer file: {file}")
+        logger.debug(f"Relative path of Dashboard Designer file: {file}")
     
     return relative_files
