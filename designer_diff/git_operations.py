@@ -58,29 +58,35 @@ def find_changed_designer_files(repo_path, branch=None):
         if branch is None:
             branch = repo.active_branch.name
         
+        logger.debug(f"Comparing changes with branch: {branch}")
+        
+        # Get changed Designer files
         changed_files = repo.git.diff('--name-only', branch, '--', '*.Designer.cs').splitlines()
+        logger.debug(f"All changed Designer files: {changed_files}")
         
         # Define the correct directory path
-        dashboard_layouts_dir = os.path.join('client', 'TeleAiClient', 'UI2', 'VehicleUIControls', 'DashboardLayouts')
+        dashboard_layouts_dir = os.path.normpath('client/TeleAiClient/UI2/VehicleUIControls/DashboardLayouts')
+        logger.debug(f"Looking for files in directory: {dashboard_layouts_dir}")
         
-        # Normalize paths for comparison
-        dashboard_layouts_dir = os.path.normpath(dashboard_layouts_dir)
-        
+        # Filter files
         filtered_files = []
         for file in changed_files:
-            # Normalize the file path
             normalized_file = os.path.normpath(file)
-            # Check if the normalized file path contains the correct directory
-            if dashboard_layouts_dir in normalized_file.split(os.sep) and file.endswith('.Designer.cs'):
+            logger.debug(f"Checking file: {normalized_file}")
+            if normalized_file.startswith(dashboard_layouts_dir):
+                logger.debug(f"File is in correct directory")
                 filtered_files.append(file)
+            else:
+                logger.debug(f"File is not in correct directory")
         
-        logger.info(f"Found {len(filtered_files)} changed Designer files in the correct directory")
+        logger.info(f"Found {len(filtered_files)} changed Designer files in the DashboardLayouts directory or its subdirectories")
         for file in filtered_files:
-            logger.debug(f"Changed Designer file: {file}")
+            logger.info(f"Changed Designer file: {file}")
         
         return filtered_files
     except Exception as e:
         logger.error(f"Error finding changed Designer files: {e}")
+        logger.exception(e)  # This will log the full stack trace
     return []
 
 def get_file_diff(file_path, branch='develop', teleai_dir=None):

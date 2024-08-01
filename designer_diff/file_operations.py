@@ -32,10 +32,14 @@ def find_designer_files(teleai_dir):
     all_files = []
     for root, dirs, files in os.walk(dashboard_layouts_dir):
         for file in files:
-            if file.startswith('Dash') and file.endswith('.Designer.cs'):
+            if file.endswith('.Designer.cs'):
                 full_path = os.path.join(root, file)
                 all_files.append(full_path)
 
     relative_files = [os.path.relpath(file, teleai_dir) for file in all_files]
+    
+    logger.info(f"Found {len(relative_files)} Designer files in the DashboardLayouts directory and its subdirectories")
+    for file in relative_files:
+        logger.debug(f"Designer file: {file}")
     
     return relative_files

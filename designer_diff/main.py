@@ -21,7 +21,7 @@ def main():
     parser.add_argument('--init', action='store_true', help='Initialize AutoGen files for all Designer files')
     parser.add_argument('-v', '--verbosity', action='count', default=0,
                         help='Increase output verbosity (e.g., -v, -vv, -vvv)')
-    parser.add_argument('--branch', help='Git branch to compare against (default: current branch)')
+    parser.add_argument('--branch', help='Git branch to compare against (default: develop)')
     args = parser.parse_args()
 
     configure_logging(args.verbosity)
@@ -36,15 +36,17 @@ def main():
     if args.init:
         designer_files = find_designer_files(teleai_dir)
     else:
-        branch = args.branch or get_current_branch(teleai_root)
-        if branch is None:
-            logging.error("Failed to determine the current branch. Please specify a branch using --branch.")
-            return
+        branch = args.branch or 'develop'  # Default to 'develop' if not specified
+        logging.info(f"Comparing changes against branch: {branch}")
         designer_files = find_changed_designer_files(teleai_root, branch)
 
     if not designer_files:
         logging.warning("No Designer files found or changed")
         return
+
+    logging.info(f"Processing the following Designer files:")
+    for file in designer_files:
+        logging.info(f"  - {file}")
 
     updater = CodeUpdater(teleai_root)
     results = updater.process_designer_files(designer_files, init_mode=args.init)
