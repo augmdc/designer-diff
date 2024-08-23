@@ -3,12 +3,27 @@ from git import Repo, InvalidGitRepositoryError
 
 def find_teleai_directory():
     try:
-        # Start from the current directory and search upwards
+        # Find the Git repository root
         repo = Repo(os.getcwd(), search_parent_directories=True)
-        return repo.working_tree_dir
+        git_root = repo.git.rev_parse("--show-toplevel")
+        
+        # Check if this is a valid teleai directory
+        if is_valid_teleai_directory(git_root):
+            return git_root
+        else:
+            return None
     except InvalidGitRepositoryError:
         print("Error: Not inside a Git repository.")
         return None
+
+def is_valid_teleai_directory(path):
+    expected_subdirs = ['client', 'TeleAiClient', 'UI2', 'VehicleUIControls', 'DashboardLayouts']
+    current_path = path
+    for subdir in expected_subdirs:
+        current_path = os.path.join(current_path, subdir)
+        if not os.path.isdir(current_path):
+            return False
+    return True
 
 def get_relative_path(path, start):
     return os.path.relpath(path, start)
